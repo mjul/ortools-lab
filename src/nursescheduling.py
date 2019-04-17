@@ -16,8 +16,6 @@ num_days = 3
 max_shifts_per_nurse_per_day = 1
 
 
-
-
 class NursesPartialSolutionPrinter(cp_model.CpSolverSolutionCallback):
     """Print intermediate solutions."""
 
@@ -49,6 +47,7 @@ class NursesPartialSolutionPrinter(cp_model.CpSolverSolutionCallback):
     def solution_count(self):
         return self._solution_count
 
+
 all_nurses = range(num_nurses)
 all_shifts = range(num_shifts)
 all_days = range(num_days)
@@ -67,7 +66,6 @@ for n in all_nurses:
     for d in all_days:
         model.Add(sum(shifts[(n, d, s)] for s in all_shifts) <= max_shifts_per_nurse_per_day)
 
-
 solver = cp_model.CpSolver()
 solver.parameters.linearization_level = 0
 
@@ -84,4 +82,3 @@ print('  - conflicts       : %i' % solver.NumConflicts())
 print('  - branches        : %i' % solver.NumBranches())
 print('  - wall time       : %f s' % solver.WallTime())
 print('  - solutions found : %i' % solution_printer.solution_count())
-
