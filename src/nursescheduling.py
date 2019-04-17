@@ -9,12 +9,6 @@ from __future__ import division
 from __future__ import print_function
 from ortools.sat.python import cp_model
 
-num_nurses = 4
-num_shifts = 3
-num_days = 3
-
-max_shifts_per_nurse_per_day = 1
-
 
 class NursesPartialSolutionPrinter(cp_model.CpSolverSolutionCallback):
     """Print intermediate solutions."""
@@ -48,37 +42,66 @@ class NursesPartialSolutionPrinter(cp_model.CpSolverSolutionCallback):
         return self._solution_count
 
 
-all_nurses = range(num_nurses)
-all_shifts = range(num_shifts)
-all_days = range(num_days)
+def nurse_scheduling():
+    # Data.
+    num_nurses = 4
+    num_shifts = 3
+    num_days = 3
+    all_nurses = range(num_nurses)
+    all_shifts = range(num_shifts)
+    all_days = range(num_days)
+    # Creates the model.
+    model = cp_model.CpModel()
 
-model = cp_model.CpModel()
+    # Creates shift variables.
+    # shifts[(n, d, s)]: nurse 'n' works shift 's' on day 'd'.
+    shifts = {}
+    for n in all_nurses:
+        for d in all_days:
+            for s in all_shifts:
+                shifts[(n, d, s)] = model.NewBoolVar('shift_n%id%is%i' % (n, d,
+                                                                          s))
 
-shifts = {}
-
-for n in all_nurses:
+    # Each shift is assigned to exactly one nurse in the schedule period.
     for d in all_days:
         for s in all_shifts:
-            shifts[(n, d, s)] = model.NewBoolVar('shift_n%dd%is%i' % (n, d, s))
+            model.Add(sum(shifts[(n, d, s)] for n in all_nurses) == 1)
 
-# Max shifts per day
-for n in all_nurses:
-    for d in all_days:
-        model.Add(sum(shifts[(n, d, s)] for s in all_shifts) <= max_shifts_per_nurse_per_day)
+    # Each nurse works at most one shift per day.
+    for n in all_nurses:
+        for d in all_days:
+            model.Add(sum(shifts[(n, d, s)] for s in all_shifts) <= 1)
 
-solver = cp_model.CpSolver()
-solver.parameters.linearization_level = 0
+    # min_shifts_per_nurse is the largest integer such that every nurse
+    # can be assigned at least that many shifts. If the number of nurses doesn't
+    # divide the total number of shifts over the schedule period,
+    # some nurses have to work one more shift, for a total of
+    # min_shifts_per_nurse + 1.
+    min_shifts_per_nurse = (num_shifts * num_days) // num_nurses
+    max_shifts_per_nurse = min_shifts_per_nurse + 1
+    for n in all_nurses:
+        num_shifts_worked = sum(
+            shifts[(n, d, s)] for d in all_days for s in all_shifts)
+        model.Add(min_shifts_per_nurse <= num_shifts_worked)
+        model.Add(num_shifts_worked <= max_shifts_per_nurse)
 
-a_few_solutions = range(5)
-solution_printer = NursesPartialSolutionPrinter(shifts, num_nurses, num_days, num_shifts, a_few_solutions)
+    # Creates the solver and solve.
+    solver = cp_model.CpSolver()
+    solver.parameters.linearization_level = 0
+    # Display the first five solutions.
+    a_few_solutions = range(5)
+    solution_printer = NursesPartialSolutionPrinter(
+        shifts, num_nurses, num_days, num_shifts, a_few_solutions)
+    solver.SearchForAllSolutions(model, solution_printer)
 
-solver.SearchForAllSolutions(model, solution_printer)
+    # Statistics.
+    print()
+    print('Statistics')
+    print('  - conflicts       : %i' % solver.NumConflicts())
+    print('  - branches        : %i' % solver.NumBranches())
+    print('  - wall time       : %f s' % solver.WallTime())
+    print('  - solutions found : %i' % solution_printer.solution_count())
 
-# Statistics
 
-print()
-print('Statistics')
-print('  - conflicts       : %i' % solver.NumConflicts())
-print('  - branches        : %i' % solver.NumBranches())
-print('  - wall time       : %f s' % solver.WallTime())
-print('  - solutions found : %i' % solution_printer.solution_count())
+if __name__ == '__main__':
+    nurse_scheduling()
