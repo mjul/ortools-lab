@@ -81,7 +81,7 @@ def driver_scheduling():
     model = cp_model.CpModel()
 
     # Creates time-block variables.
-    # timeblocks[(n, d, s)]: driver 'n' works block 'b' on day 'd'.
+    # timeblocks[(dr, day, bl, st)]: driver 'dr' works block 'bl' on day 'day' doing state 'st'
     timeblocks = {}
     for driver in all_drivers:
         for day in all_days:
