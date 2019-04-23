@@ -3,8 +3,6 @@ from __future__ import division
 from __future__ import print_function
 from ortools.sat.python import cp_model
 
-from enum import IntEnum, unique
-
 
 class ImplicationsPartialSolutionPrinter(cp_model.CpSolverSolutionCallback):
     """Print intermediate solutions."""
