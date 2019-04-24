@@ -146,13 +146,16 @@ def driver_scheduling():
                                   for block in too_much_driving)
                               <= max_consecutive_driving_timeblocks)
 
+    # Define the objective: maximum free days for the drivers
+
+    model.Maximize(sum(free_days[driver, day] for driver in all_drivers for day in all_days))
+
     # Create the solver and solve
     solver = cp_model.CpSolver()
     solver.parameters.linearization_level = 0
     solver.parameters.max_time_in_seconds = 10.0
 
     status = solver.Solve(model)
-
     print("Solver status: ", solver.StatusName(status))
 
     if status != cp_model.INFEASIBLE:
