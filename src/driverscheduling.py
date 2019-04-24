@@ -60,8 +60,8 @@ class DriversPartialSolutionPrinter(cp_model.CpSolverSolutionCallback):
 def driver_scheduling():
     minutes_per_timeblock = 30
 
-    num_drivers = 3
-    num_timeblocks = 8
+    num_drivers = 6
+    num_timeblocks = 6
     num_days = 1
 
     # Min and max working time (including breaks)
@@ -90,6 +90,23 @@ def driver_scheduling():
                     timeblocks[(driver, day, block, state)] = model.NewBoolVar(
                         'timeblock_driver%i_day%i_block%i_state%i' % (driver, day, block, state))
 
+    # Create the indicator variables for a driver having a free day (not working)
+    free_days = {}
+    for driver in all_drivers:
+        for day in all_days:
+            free_days[(driver, day)] = model.NewBoolVar('free_day_driver%i_day%i' % (driver, day))
+
+    # A day is free if there are no not-free blocks for the driver
+    for driver in all_drivers:
+        for day in all_days:
+            free_day = free_days[(driver, day)]
+            for block in all_timeblocks:
+                free_block = timeblocks[(driver, day, block, State.FREE.value)]
+                # if any block is not free, the day is not free
+                model.AddImplication(free_block.Not(), free_day.Not())
+                # if the day is free, all the blocks must be free
+                model.AddImplication(free_day, free_block)
+
     # Each time block has exactly one driver driving
     for day in all_days:
         for block in all_timeblocks:
@@ -112,10 +129,11 @@ def driver_scheduling():
     # Min time-blocks per working day including rest
     for driver in all_drivers:
         for day in all_days:
+            is_working_day = free_days[(driver, day)].Not()
             model.Add(sum(timeblocks[(driver, day, block, state.value)]
                           for block in all_timeblocks
                           for state in all_work_states)
-                      >= min_total_timeblocks_per_driver_per_working_day)
+                      >= (min_total_timeblocks_per_driver_per_working_day * is_working_day))
 
     # Max consecutive time-blocks without rest
     for driver in all_drivers:
@@ -132,21 +150,27 @@ def driver_scheduling():
     solver = cp_model.CpSolver()
     solver.parameters.linearization_level = 0
     solver.parameters.max_time_in_seconds = 10.0
-    # Display the first few solutions.
-    a_few_solutions = range(2)
-    solution_printer = DriversPartialSolutionPrinter(
-        timeblocks, num_drivers, num_days, num_timeblocks, a_few_solutions)
-    solver.SearchForAllSolutions(model, solution_printer)
 
-    # solver.Solve(model)
+    status = solver.Solve(model)
+
+    print("Solver status: ", solver.StatusName(status))
+
+    if status != cp_model.INFEASIBLE:
+
+        for day in all_days:
+            print('-- Day %i' % day)
+            for driver in all_drivers:
+                is_free_day = solver.BooleanValue(free_days[(driver, day)])
+                print('Driver %i is free? %s' % (driver, is_free_day))
+                for block in all_timeblocks:
+                    for state in State:
+                        if solver.Value(timeblocks[(driver, day, block, state.value)]):
+                            print('Driver %i block %i doing %s' % (driver, block, state.name))
 
     # Statistics.
     print()
     print('Statistics')
-    print('  - conflicts       : %i' % solver.NumConflicts())
-    print('  - branches        : %i' % solver.NumBranches())
-    print('  - wall time       : %f s' % solver.WallTime())
-    print('  - solutions found : %i' % solution_printer.solution_count())
+    print(solver.ResponseStats())
 
 
 if __name__ == '__main__':
